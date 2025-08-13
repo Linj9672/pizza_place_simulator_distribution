@@ -54,6 +54,15 @@
                 Export Data to CSV
             </button>
         </div>
+        
+        <!-- Estimated Wait Time Section -->
+        <div class="bg-gray-200 p-4 rounded-lg shadow-inner flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+            <label for="order-id-input" class="text-lg font-semibold whitespace-nowrap">Check Estimated Wait Time for Order ID:</label>
+            <input type="number" id="order-id-input" min="1" class="w-full sm:w-24 p-2 border-2 border-gray-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            <button id="check-wait-time-button" class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-bold text-lg rounded-lg shadow-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
+                Check Wait Time
+            </button>
+        </div>
 
         <!-- Simulation Visualization -->
         <div id="simulation-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -101,6 +110,15 @@
                 <p>Click "Start Simulation" to begin.</p>
             </div>
         </div>
+        
+        <!-- Message Box -->
+        <div id="message-box" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-white p-8 rounded-lg shadow-2xl max-w-sm w-full mx-4">
+                <h3 id="message-title" class="text-xl font-bold mb-4 text-gray-800"></h3>
+                <p id="message-text" class="text-gray-700 mb-6"></p>
+                <button id="close-message" class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Close</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -113,6 +131,8 @@
         const startButton = document.getElementById('start-button');
         const stopButton = document.getElementById('stop-button');
         const exportButton = document.getElementById('export-button');
+        const orderIdInput = document.getElementById('order-id-input');
+        const checkWaitTimeButton = document.getElementById('check-wait-time-button');
         const ordersInQueueEl = document.getElementById('orders-in-queue');
         const prepEl = document.getElementById('prep');
         const bakingEl = document.getElementById('baking');
@@ -120,6 +140,10 @@
         const deliveringEl = document.getElementById('delivering');
         const completedEl = document.getElementById('completed');
         const logContainer = document.getElementById('log-container');
+        const messageBox = document.getElementById('message-box');
+        const messageTitle = document.getElementById('message-title');
+        const messageText = document.getElementById('message-text');
+        const closeMessageButton = document.getElementById('close-message');
         
         // Counter Elements
         const ordersInQueueCountEl = document.getElementById('orders-in-queue-count');
@@ -160,6 +184,17 @@
         function generateNextArrivalTime(lambda) {
             return -Math.log(1 - Math.random()) / lambda;
         }
+        
+        // --- Message Box Functionality ---
+        function showMessage(title, text) {
+            messageTitle.textContent = title;
+            messageText.textContent = text;
+            messageBox.classList.remove('hidden');
+        }
+
+        closeMessageButton.addEventListener('click', () => {
+            messageBox.classList.add('hidden');
+        });
 
         // --- Core Simulation Logic ---
 
@@ -311,7 +346,7 @@
         // Function to export data to a CSV file
         function exportToCSV() {
             if (completedOrders.length === 0) {
-                alert("No completed orders to export.");
+                showMessage("Export Failed", "No completed orders to export.");
                 return;
             }
 
@@ -338,6 +373,53 @@
             URL.revokeObjectURL(url); // Clean up the URL
             log("Exported data to CSV.");
         }
+        
+        // Function to calculate and display estimated wait time
+        function calculateAndDisplayWaitTime() {
+            const orderId = parseInt(orderIdInput.value, 10);
+            
+            if (isNaN(orderId) || orderId <= 0) {
+                showMessage("Invalid Order ID", "Please enter a valid order ID greater than 0.");
+                return;
+            }
+
+            const order = orders.find(o => o.id === orderId);
+            const completedOrder = completedOrders.find(o => o.id === orderId);
+
+            if (completedOrder) {
+                showMessage("Order Status", `Order #${orderId} is already completed. Total lead time was ${completedOrder.completionTime - completedOrder.orderTime} minutes.`);
+                return;
+            }
+
+            if (!order) {
+                showMessage("Order Not Found", `Order #${orderId} has not arrived yet or does not exist.`);
+                return;
+            }
+            
+            let estimatedTime = 0;
+            let currentStageTime = 0;
+
+            // Base the estimate on the current stage
+            if (order.stage === 'queue') {
+                const prepQueueCount = orders.filter(o => o.stage === 'queue').indexOf(order);
+                currentStageTime = prepQueueCount * (5 / PREP_CAPACITY) * 1.5; // A simple heuristic
+                estimatedTime += currentStageTime + order.prepTime + order.bakingTime + 2 + order.deliveryTime;
+            } else if (order.stage === 'prep') {
+                const timeRemainingInPrep = Math.max(0, order.prepFinishTime - currentTime);
+                estimatedTime += timeRemainingInPrep + order.bakingTime + 2 + order.deliveryTime;
+            } else if (order.stage === 'baking') {
+                const timeRemainingInBaking = Math.max(0, order.bakingFinishTime - currentTime);
+                estimatedTime += timeRemainingInBaking + 2 + order.deliveryTime;
+            } else if (order.stage === 'deliveryQueue') {
+                const deliveryQueueCount = orders.filter(o => o.stage === 'deliveryQueue').indexOf(order);
+                currentStageTime = deliveryQueueCount * (15 / DRIVER_CAPACITY) * 1.5; // Another simple heuristic
+                estimatedTime += currentStageTime + order.deliveryTime;
+            } else if (order.stage === 'delivering') {
+                estimatedTime += Math.max(0, order.deliveryFinishTime - currentTime);
+            }
+
+            showMessage("Estimated Wait Time", `Order #${orderId} is currently in the **${order.stage}** stage. Estimated remaining time until delivery: **${estimatedTime.toFixed(2)} minutes**.`);
+        }
 
 
         // Start button handler
@@ -350,7 +432,7 @@
             
             if (isNaN(nonPeakOrdersPerHour) || isNaN(peakOrdersPerHour) || isNaN(peakStart) || isNaN(peakEnd) || isNaN(simulationDuration) ||
                 nonPeakOrdersPerHour <= 0 || peakOrdersPerHour <= 0 || simulationDuration <= 0 || peakStart < 0 || peakEnd < peakStart) {
-                alert("Please enter valid numbers for all fields. Peak end time must be after peak start time.");
+                showMessage("Invalid Input", "Please enter valid numbers for all fields. Peak end time must be after peak start time.");
                 return;
             }
             
@@ -370,6 +452,7 @@
             stopButton.classList.remove('hidden');
             exportButton.classList.add('hidden');
             startButton.disabled = true;
+            checkWaitTimeButton.disabled = false;
 
             log(`Starting simulation with a non-peak rate of ${nonPeakOrdersPerHour} orders/hour and a peak rate of ${peakOrdersPerHour} orders/hour from time ${peakStart} to ${peakEnd}.`);
             render();
@@ -385,12 +468,21 @@
                 stopButton.classList.add('hidden');
                 exportButton.classList.remove('hidden');
                 startButton.disabled = false;
+                checkWaitTimeButton.disabled = true;
                 log("Simulation stopped by user.");
             }
         });
         
         // Export button handler
         exportButton.addEventListener('click', exportToCSV);
+        
+        // Check Wait Time button handler
+        checkWaitTimeButton.addEventListener('click', calculateAndDisplayWaitTime);
+        
+        // Initially disable buttons that require a running simulation
+        stopButton.classList.add('hidden');
+        exportButton.classList.add('hidden');
+        checkWaitTimeButton.disabled = true;
     </script>
 </body>
 </html>
