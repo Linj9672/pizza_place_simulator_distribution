@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizza Palace Advanced Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .stage-container {
+            min-height: 150px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 sm:p-8">
+    <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-2xl p-6 sm:p-10">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-center text-red-600 mb-6">Pizza Palace Advanced Simulator</h1>
+        <p class="text-center text-lg text-gray-600 mb-8">This version simulates process flow using probability distributions and dynamic demand rates.</p>
+        
+        <!-- Input and Control Area -->
+        <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8">
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                <label for="non-peak-orders" class="text-lg font-semibold whitespace-nowrap">Non-Peak Avg Orders/Hour:</label>
+                <input type="number" id="non-peak-orders" value="10" min="1" class="w-full md:w-24 p-2 border-2 border-gray-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                <label for="peak-orders" class="text-lg font-semibold whitespace-nowrap">Peak Avg Orders/Hour:</label>
+                <input type="number" id="peak-orders" value="40" min="1" class="w-full md:w-24 p-2 border-2 border-gray-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                <label for="peak-start" class="text-lg font-semibold whitespace-nowrap">Peak Start (min):</label>
+                <input type="number" id="peak-start" value="15" min="0" class="w-full md:w-24 p-2 border-2 border-gray-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                <label for="peak-end" class="text-lg font-semibold whitespace-nowrap">Peak End (min):</label>
+                <input type="number" id="peak-end" value="45" min="0" class="w-full md:w-24 p-2 border-2 border-gray-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                <label for="simulation-duration" class="text-lg font-semibold whitespace-nowrap">Duration (min):</label>
+                <input type="number" id="simulation-duration" value="60" min="10" class="w-full md:w-24 p-2 border-2 border-gray-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+            <button id="start-button" class="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-bold text-lg rounded-lg shadow-md hover:bg-red-700 transition duration-300 transform hover:scale-105">
+                Start Simulation
+            </button>
+            <button id="stop-button" class="w-full sm:w-auto px-6 py-3 bg-gray-500 text-white font-bold text-lg rounded-lg shadow-md hover:bg-gray-600 transition duration-300 transform hover:scale-105 hidden">
+                Stop Simulation
+            </button>
+        </div>
+
+        <!-- Simulation Visualization -->
+        <div id="simulation-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Stage: Orders in Queue -->
+            <div class="bg-blue-100 p-4 rounded-lg shadow-inner stage-container">
+                <h3 class="font-bold text-blue-800 text-xl mb-3">Order Queue (<span id="orders-in-queue-count">0</span>)</h3>
+                <div id="orders-in-queue" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Stage: Prep -->
+            <div class="bg-yellow-100 p-4 rounded-lg shadow-inner stage-container">
+                <h3 class="font-bold text-yellow-800 text-xl mb-3">Prep (<span id="prep-count">0</span>)</h3>
+                <div id="prep" class="flex flex-wrap gap-2"></div>
+            </div>
+            
+            <!-- Stage: Baking -->
+            <div class="bg-orange-100 p-4 rounded-lg shadow-inner stage-container">
+                <h3 class="font-bold text-orange-800 text-xl mb-3">Baking (<span id="baking-count">0</span>)</h3>
+                <div id="baking" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Stage: Delivery Queue -->
+            <div class="bg-purple-100 p-4 rounded-lg shadow-inner stage-container">
+                <h3 class="font-bold text-purple-800 text-xl mb-3">Delivery Queue (<span id="delivery-queue-count">0</span>)</h3>
+                <div id="delivery-queue" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Stage: Delivering -->
+            <div class="bg-green-100 p-4 rounded-lg shadow-inner stage-container">
+                <h3 class="font-bold text-green-800 text-xl mb-3">Delivering (<span id="delivering-count">0</span>)</h3>
+                <div id="delivering" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Stage: Completed -->
+            <div class="bg-gray-200 p-4 rounded-lg shadow-inner stage-container">
+                <h3 class="font-bold text-gray-800 text-xl mb-3">Completed (<span id="completed-count">0</span>)</h3>
+                <div id="completed" class="flex flex-col gap-2"></div>
+            </div>
+        </div>
+        
+        <!-- Status Log -->
+        <div class="mt-8 p-6 bg-gray-50 rounded-lg shadow-inner">
+            <h3 class="text-2xl font-bold mb-4 text-red-600">Simulation Log</h3>
+            <div id="log-container" class="space-y-2 text-gray-700 max-h-64 overflow-y-auto">
+                <p>Click "Start Simulation" to begin.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const nonPeakOrdersInput = document.getElementById('non-peak-orders');
+        const peakOrdersInput = document.getElementById('peak-orders');
+        const peakStartInput = document.getElementById('peak-start');
+        const peakEndInput = document.getElementById('peak-end');
+        const simulationDurationInput = document.getElementById('simulation-duration');
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+        const ordersInQueueEl = document.getElementById('orders-in-queue');
+        const prepEl = document.getElementById('prep');
+        const bakingEl = document.getElementById('baking');
+        const deliveryQueueEl = document.getElementById('delivery-queue');
+        const deliveringEl = document.getElementById('delivering');
+        const completedEl = document.getElementById('completed');
+        const logContainer = document.getElementById('log-container');
+        
+        // Counter Elements
+        const ordersInQueueCountEl = document.getElementById('orders-in-queue-count');
+        const prepCountEl = document.getElementById('prep-count');
+        const bakingCountEl = document.getElementById('baking-count');
+        const deliveryQueueCountEl = document.getElementById('delivery-queue-count');
+        const deliveringCountEl = document.getElementById('delivering-count');
+        const completedCountEl = document.getElementById('completed-count');
+
+        // Simulation Parameters
+        const PREP_CAPACITY = 1; 
+        const OVEN_CAPACITY = 8;
+        const DRIVER_CAPACITY = 2;
+
+        // Simulation State
+        let simulationInterval = null;
+        let currentTime = 0;
+        let simulationDuration = 0;
+        let orders = [];
+        let completedOrders = [];
+        let nextOrderId = 1;
+        let nextArrivalTime = 0;
+        let nonPeakLambda, peakLambda;
+        let peakStart, peakEnd;
+
+        // --- Helper functions for distributions ---
+
+        // Box-Muller transform for a normal distribution
+        function normalRandom(mean, stdDev) {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+            while(v === 0) v = Math.random();
+            let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return num * stdDev + mean;
+        }
+
+        // Generate next order arrival time using an exponential distribution (which is the inter-arrival time for a Poisson process)
+        function generateNextArrivalTime(lambda) {
+            return -Math.log(1 - Math.random()) / lambda;
+        }
+
+        // --- Core Simulation Logic ---
+
+        // Helper function to create an order element
+        function createOrderElement(order) {
+            const el = document.createElement('div');
+            el.id = `order-${order.id}`;
+            el.className = 'w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md';
+            el.textContent = order.id;
+            el.title = `Order #${order.id}`;
+            return el;
+        }
+
+        // Helper function to log messages
+        function log(message) {
+            const p = document.createElement('p');
+            p.textContent = `[Time ${currentTime.toFixed(2)} min]: ${message}`;
+            logContainer.prepend(p);
+        }
+
+        // Render function to update the UI
+        function render() {
+            // Clear all containers
+            ordersInQueueEl.innerHTML = '';
+            prepEl.innerHTML = '';
+            bakingEl.innerHTML = '';
+            deliveryQueueEl.innerHTML = '';
+            deliveringEl.innerHTML = '';
+            completedEl.innerHTML = '';
+
+            const ordersInQueue = orders.filter(o => o.stage === 'queue');
+            const prep = orders.filter(o => o.stage === 'prep');
+            const baking = orders.filter(o => o.stage === 'baking');
+            const deliveryQueue = orders.filter(o => o.stage === 'deliveryQueue');
+            const delivering = orders.filter(o => o.stage === 'delivering');
+
+            // Render orders in each stage
+            ordersInQueue.forEach(o => ordersInQueueEl.appendChild(createOrderElement(o)));
+            prep.forEach(o => prepEl.appendChild(createOrderElement(o)));
+            baking.forEach(o => bakingEl.appendChild(createOrderElement(o)));
+            deliveryQueue.forEach(o => deliveryQueueEl.appendChild(createOrderElement(o)));
+            delivering.forEach(o => deliveringEl.appendChild(createOrderElement(o)));
+            completedOrders.forEach(o => {
+                const p = document.createElement('p');
+                const leadTime = o.completionTime - o.orderTime;
+                p.textContent = `Order #${o.id} delivered. Lead Time: ${leadTime.toFixed(2)} min.`;
+                p.className = 'bg-gray-100 p-2 rounded-lg';
+                completedEl.appendChild(p);
+            });
+
+            // Update counts
+            ordersInQueueCountEl.textContent = ordersInQueue.length;
+            prepCountEl.textContent = prep.length;
+            bakingCountEl.textContent = baking.length;
+            deliveryQueueCountEl.textContent = deliveryQueue.length;
+            deliveringCountEl.textContent = delivering.length;
+            completedCountEl.textContent = completedOrders.length;
+        }
+
+        // Main simulation loop
+        function simulationLoop() {
+            // Check for new order arrivals
+            // Determine the current arrival rate based on peak hours
+            let currentLambda = nonPeakLambda;
+            if (currentTime >= peakStart && currentTime < peakEnd) {
+                currentLambda = peakLambda;
+            }
+
+            // Generate arrivals dynamically
+            while(nextArrivalTime <= currentTime) {
+                const order = {
+                    id: nextOrderId++,
+                    orderTime: nextArrivalTime,
+                    stage: 'queue',
+                    prepTime: normalRandom(5, 1), // Mean of 5, std dev of 1
+                    bakingTime: normalRandom(15, 0.5), // Mean of 15, std dev of 0.5
+                    deliveryTime: normalRandom(15, 3) // Mean of 15, std dev of 3
+                };
+                orders.push(order);
+                log(`Order #${order.id} arrived at time ${order.orderTime.toFixed(2)}.`);
+                nextArrivalTime += generateNextArrivalTime(currentLambda);
+            }
+
+            // Move orders from queue to prep
+            const prepSlots = PREP_CAPACITY - orders.filter(o => o.stage === 'prep').length;
+            const prepQueue = orders.filter(o => o.stage === 'queue').sort((a, b) => a.orderTime - b.orderTime);
+            for (let i = 0; i < Math.min(prepSlots, prepQueue.length); i++) {
+                const order = prepQueue[i];
+                order.stage = 'prep';
+                order.prepFinishTime = currentTime + Math.max(0, order.prepTime);
+                log(`Order #${order.id} moved to Prep, will finish at ${order.prepFinishTime.toFixed(2)}.`);
+            }
+
+            // Move orders from prep to baking
+            const readyForBaking = orders.filter(o => o.stage === 'prep' && currentTime >= o.prepFinishTime);
+            const bakingSlots = OVEN_CAPACITY - orders.filter(o => o.stage === 'baking').length;
+            for (let i = 0; i < Math.min(bakingSlots, readyForBaking.length); i++) {
+                const order = readyForBaking[i];
+                order.stage = 'baking';
+                order.bakingFinishTime = currentTime + Math.max(0, order.bakingTime);
+                log(`Order #${order.id} moved to Baking, will finish at ${order.bakingFinishTime.toFixed(2)}.`);
+            }
+
+            // Move orders from baking to delivery queue
+            const readyForDeliveryQueue = orders.filter(o => o.stage === 'baking' && currentTime >= (o.bakingFinishTime + Math.max(0, normalRandom(2, 0.5)))); // 2 minutes packing
+            readyForDeliveryQueue.forEach(order => {
+                order.stage = 'deliveryQueue';
+                log(`Order #${order.id} finished baking and is on the Delivery Shelf.`);
+            });
+
+            // Move orders from delivery queue to drivers
+            const driverSlots = DRIVER_CAPACITY - orders.filter(o => o.stage === 'delivering').length;
+            const deliveryQueue = orders.filter(o => o.stage === 'deliveryQueue');
+            for (let i = 0; i < Math.min(driverSlots, deliveryQueue.length); i++) {
+                const order = deliveryQueue[i];
+                order.stage = 'delivering';
+                order.deliveryFinishTime = currentTime + Math.max(0, order.deliveryTime);
+                log(`Order #${order.id} is now with a driver, will finish at ${order.deliveryFinishTime.toFixed(2)}.`);
+            }
+
+            // Complete delivered orders
+            const deliveredOrders = orders.filter(o => o.stage === 'delivering' && currentTime >= o.deliveryFinishTime);
+            deliveredOrders.forEach(order => {
+                order.completionTime = currentTime;
+                order.stage = 'completed';
+                completedOrders.push(order);
+                log(`Order #${order.id} delivered. Lead Time: ${(order.completionTime - order.orderTime).toFixed(2)} min.`);
+            });
+            
+            // Remove completed orders from the active list
+            orders = orders.filter(o => o.stage !== 'completed');
+            
+            // Render the updated state
+            render();
+
+            // Update time
+            currentTime += 0.5; // Simulate in 30-second increments
+            if (currentTime >= simulationDuration) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                startButton.disabled = false;
+                startButton.classList.remove('hidden');
+                stopButton.classList.add('hidden');
+                log("Simulation finished.");
+            }
+        }
+
+        // Start button handler
+        startButton.addEventListener('click', () => {
+            const nonPeakOrdersPerHour = parseInt(nonPeakOrdersInput.value, 10);
+            const peakOrdersPerHour = parseInt(peakOrdersInput.value, 10);
+            peakStart = parseInt(peakStartInput.value, 10);
+            peakEnd = parseInt(peakEndInput.value, 10);
+            simulationDuration = parseInt(simulationDurationInput.value, 10);
+            
+            if (isNaN(nonPeakOrdersPerHour) || isNaN(peakOrdersPerHour) || isNaN(peakStart) || isNaN(peakEnd) || isNaN(simulationDuration) ||
+                nonPeakOrdersPerHour <= 0 || peakOrdersPerHour <= 0 || simulationDuration <= 0 || peakStart < 0 || peakEnd < peakStart) {
+                alert("Please enter valid numbers for all fields. Peak end time must be after peak start time.");
+                return;
+            }
+            
+            // Convert to orders per minute
+            nonPeakLambda = nonPeakOrdersPerHour / 60;
+            peakLambda = peakOrdersPerHour / 60;
+            
+            // Reset simulation state
+            orders = [];
+            completedOrders = [];
+            currentTime = 0;
+            nextOrderId = 1;
+            nextArrivalTime = 0;
+            logContainer.innerHTML = '';
+            
+            startButton.classList.add('hidden');
+            stopButton.classList.remove('hidden');
+            startButton.disabled = true;
+
+            log(`Starting simulation with a non-peak rate of ${nonPeakOrdersPerHour} orders/hour and a peak rate of ${peakOrdersPerHour} orders/hour from time ${peakStart} to ${peakEnd}.`);
+            render();
+            simulationInterval = setInterval(simulationLoop, 50); // Fast simulation
+        });
+
+        // Stop button handler
+        stopButton.addEventListener('click', () => {
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                startButton.classList.remove('hidden');
+                stopButton.classList.add('hidden');
+                startButton.disabled = false;
+                log("Simulation stopped by user.");
+            }
+        });
+    </script>
+</body>
+</html>
