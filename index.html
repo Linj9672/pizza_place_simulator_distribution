@@ -12,12 +12,31 @@
         .stage-container {
             min-height: 150px;
         }
+        .text-shadow {
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 p-4 sm:p-8">
     <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-2xl p-6 sm:p-10">
-        <h1 class="text-3xl sm:text-4xl font-extrabold text-center text-red-600 mb-6">Pizza Palace Advanced Simulator</h1>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-center text-red-600 mb-6 text-shadow">Pizza Palace Advanced Simulator</h1>
         <p class="text-center text-lg text-gray-600 mb-8">This version simulates process flow using probability distributions and dynamic demand rates.</p>
+        
+        <!-- Dashboard Section -->
+        <div class="bg-red-50 p-6 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row justify-around items-center space-y-4 md:space-y-0">
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-red-800">Total Orders Completed</h2>
+                <p id="dashboard-completed" class="text-4xl font-extrabold text-red-600 mt-2">0</p>
+            </div>
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-red-800">Average Lead Time (min)</h2>
+                <p id="dashboard-avg-lead-time" class="text-4xl font-extrabold text-red-600 mt-2">0.00</p>
+            </div>
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-red-800">Orders in Progress</h2>
+                <p id="dashboard-in-progress" class="text-4xl font-extrabold text-red-600 mt-2">0</p>
+            </div>
+        </div>
         
         <!-- Input and Control Area -->
         <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8">
@@ -155,6 +174,11 @@
         const deliveryQueueCountEl = document.getElementById('delivery-queue-count');
         const deliveringCountEl = document.getElementById('delivering-count');
         const completedCountEl = document.getElementById('completed-count');
+        
+        // Dashboard Elements
+        const dashboardCompletedEl = document.getElementById('dashboard-completed');
+        const dashboardAvgLeadTimeEl = document.getElementById('dashboard-avg-lead-time');
+        const dashboardInProgressEl = document.getElementById('dashboard-in-progress');
 
         // Simulation Parameters
         const PREP_CAPACITY = 1; 
@@ -171,6 +195,7 @@
         let nextArrivalTime = 0;
         let nonPeakLambda, peakLambda;
         let peakStart, peakEnd;
+        let totalLeadTime = 0;
 
         // --- Helper functions for distributions ---
 
@@ -217,6 +242,19 @@
             p.textContent = `[Time ${currentTime.toFixed(2)} min]: ${message}`;
             logContainer.prepend(p);
         }
+        
+        // Update dashboard metrics
+        function updateDashboard() {
+            dashboardCompletedEl.textContent = completedOrders.length;
+            
+            let avgLeadTime = 0;
+            if (completedOrders.length > 0) {
+                const totalLeadTime = completedOrders.reduce((sum, order) => sum + (order.completionTime - order.orderTime), 0);
+                avgLeadTime = totalLeadTime / completedOrders.length;
+            }
+            dashboardAvgLeadTimeEl.textContent = avgLeadTime.toFixed(2);
+            dashboardInProgressEl.textContent = orders.length;
+        }
 
         // Render function to update the UI
         function render() {
@@ -255,6 +293,9 @@
             deliveryQueueCountEl.textContent = deliveryQueue.length;
             deliveringCountEl.textContent = delivering.length;
             completedCountEl.textContent = completedOrders.length;
+            
+            // Update dashboard
+            updateDashboard();
         }
 
         // Main simulation loop
@@ -342,6 +383,7 @@
                 startButton.classList.remove('hidden');
                 stopButton.classList.add('hidden');
                 exportButton.classList.remove('hidden'); // Show export button when simulation finishes
+                checkWaitTimeButton.disabled = false;
                 log("Simulation finished.");
             }
         }
@@ -402,7 +444,7 @@
             let estimatedTime = 0;
             
             // Get the queue of orders ahead of this one in each stage
-            const prepQueue = orders.filter(o => o.stage === 'prep' && o.orderTime < order.orderTime);
+            const prepQueue = orders.filter(o => o.stage === 'queue' && o.orderTime < order.orderTime);
             const bakingQueue = orders.filter(o => o.stage === 'baking' && o.prepFinishTime < order.prepFinishTime);
             const deliveryQueue = orders.filter(o => o.stage === 'deliveryQueue' && o.bakingFinishTime < order.bakingFinishTime);
 
