@@ -50,6 +50,9 @@
             <button id="stop-button" class="w-full sm:w-auto px-6 py-3 bg-gray-500 text-white font-bold text-lg rounded-lg shadow-md hover:bg-gray-600 transition duration-300 transform hover:scale-105 hidden">
                 Stop Simulation
             </button>
+            <button id="export-button" class="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-bold text-lg rounded-lg shadow-md hover:bg-green-700 transition duration-300 transform hover:scale-105 hidden">
+                Export Data to CSV
+            </button>
         </div>
 
         <!-- Simulation Visualization -->
@@ -109,6 +112,7 @@
         const simulationDurationInput = document.getElementById('simulation-duration');
         const startButton = document.getElementById('start-button');
         const stopButton = document.getElementById('stop-button');
+        const exportButton = document.getElementById('export-button');
         const ordersInQueueEl = document.getElementById('orders-in-queue');
         const prepEl = document.getElementById('prep');
         const bakingEl = document.getElementById('baking');
@@ -299,9 +303,42 @@
                 startButton.disabled = false;
                 startButton.classList.remove('hidden');
                 stopButton.classList.add('hidden');
+                exportButton.classList.remove('hidden'); // Show export button when simulation finishes
                 log("Simulation finished.");
             }
         }
+        
+        // Function to export data to a CSV file
+        function exportToCSV() {
+            if (completedOrders.length === 0) {
+                alert("No completed orders to export.");
+                return;
+            }
+
+            // Define the CSV header
+            let csv = "Order ID,Order Time (min),Completion Time (min),Lead Time (min)\n";
+            
+            // Add the data for each completed order
+            completedOrders.forEach(order => {
+                const leadTime = order.completionTime - order.orderTime;
+                csv += `${order.id},${order.orderTime.toFixed(2)},${order.completionTime.toFixed(2)},${leadTime.toFixed(2)}\n`;
+            });
+
+            // Create a blob and a URL for the CSV file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            // Create a temporary link element to trigger the download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pizza-palace-simulation-results.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url); // Clean up the URL
+            log("Exported data to CSV.");
+        }
+
 
         // Start button handler
         startButton.addEventListener('click', () => {
@@ -331,6 +368,7 @@
             
             startButton.classList.add('hidden');
             stopButton.classList.remove('hidden');
+            exportButton.classList.add('hidden');
             startButton.disabled = true;
 
             log(`Starting simulation with a non-peak rate of ${nonPeakOrdersPerHour} orders/hour and a peak rate of ${peakOrdersPerHour} orders/hour from time ${peakStart} to ${peakEnd}.`);
@@ -345,10 +383,14 @@
                 simulationInterval = null;
                 startButton.classList.remove('hidden');
                 stopButton.classList.add('hidden');
+                exportButton.classList.remove('hidden');
                 startButton.disabled = false;
                 log("Simulation stopped by user.");
             }
         });
+        
+        // Export button handler
+        exportButton.addEventListener('click', exportToCSV);
     </script>
 </body>
 </html>
